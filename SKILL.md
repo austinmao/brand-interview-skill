@@ -1,113 +1,94 @@
 ---
 name: brand-interview
-description: Runs a conversational brand-discovery interview to produce a structured brand profile (positioning, voice, audience, feeling, differentiation). Use this whenever the user wants to "do a brand interview," "figure out our brand voice," "define our positioning," "build a brand profile," or says something like "help me figure out what we stand for" / "I don't know how to describe my business." Works standalone, no external tools required — ask this skill to run even if a live brand-interview connector/MCP isn't available or has failed. Also use when the user wants to replicate, automate, or build a tool similar to a "brand interview" experience.
+description: "Run a structured brand interview and produce a BRAND.md brand book"
+version: "1.0.0"
+permissions:
+  filesystem: write
+  network: false
+triggers:
+  - command: /brand-interview
+metadata:
+  openclaw:
+    emoji: "🎯"
+    requires:
+      bins: []
+      env: []
+      os: ["darwin", "linux"]
 ---
 
 # Brand Interview
 
-A guided, conversational interview that turns a business owner's half-formed sense of their brand into a structured brand profile: one question at a time, adapting when the person gets stuck, ending in a usable reference document.
+Conducts a guided brand interview and assembles a complete `BRAND.md` — strategy, positioning, audience, narrative, and voice. Mirrors the clawinterview MCP protocol (`brand_next_question` → `brand_submit_answer` → `brand_finalize`) as a stateful conversational loop.
 
-## When to use this
+Excludes visual identity (→ `DESIGN.md`) and product content (→ `PRODUCT.md`).
 
-- User wants to define brand voice, positioning, audience, or tone from scratch
-- User says "I don't know" or goes blank on a brand question — this skill's job is to unstick them, not just collect an answer
-- User wants the output turned into something reusable (a skill file, a style guide, brand brief)
-- A live brand-interview MCP/connector is unavailable, errored out, or the user explicitly wants a standalone version
+## Phase Protocol
 
-## Core interaction pattern
+Mirrors the MCP flow. Run phases in order. Do not skip.
 
-This is the most important part of the skill — it's not a form, it's a conversation.
+### Phase 0 — Source Intake
+Ask: "Do you have an existing website, brand doc, or material to share first?"
+- If yes: read it, extract signals, acknowledge 2–3 findings, continue to Phase 1 with those as pre-fills.
+- If no: proceed directly to Phase 1.
 
-1. **Ask one question at a time.** Never bundle multiple questions into one message. Wait for the answer before moving on.
-2. **If the person answers directly and confidently** — accept it, optionally reflect it back in one tightened sentence, move to the next question.
-3. **If the person says "I don't know," gives a one-word non-answer, or seems stuck:**
-   - Don't repeat the question verbatim.
-   - Offer 3-5 concrete, labeled directions specific to *their* business (not generic categories). Each option should be a short bolded label + a one-line gut-check phrase in quotes that someone might actually say or feel.
-   - Ground the options in details you already know about their business from earlier answers — this is what makes the options feel specific instead of like a personality quiz.
-   - End with an open invitation: "Which of these feels closest? Or is it something else?"
-   - If they're still stuck after one round of options, narrow it further or just make a reasonable proposal and ask them to confirm/edit rather than asking open-ended again. Don't loop more than twice on the same question.
-4. **Confirm before locking in an answer that came from your own suggestion**, not the user's original words. Restate it as the final phrasing you'll record, e.g. "Great — I'll record this as: '...'. Sound right?"
-5. **Keep momentum.** No long preambles between questions. A short acknowledgment + the next question is usually enough.
+Signals extracted here reduce questions in Phase 1 (mirrors `existing_websites` contract input).
 
-## Question set
+### Phase 1 — Interview Loop (mirrors `brand_next_question` / `brand_submit_answer`)
 
-Ask these roughly in order, but skip/reorder/merge if the user's earlier answers already cover a later question. Don't recite this list to the user — ask one at a time, naturally.
+Work through sections §0 → §10 in order. Load `references/interview-guide.md` for per-section questions and field definitions.
 
-1. **Core description** — "In one sentence, what does your business actually do?"
-2. **Feeling** — "Describe the feeling someone should have working with you." (or: after they finish/use your product, what do they feel?)
-3. **Audience** — "Who is the one person you most want to reach?" (push for a specific person/moment/struggle, not a demographic)
-4. **Problem/stakes** — "What's the problem they have if they don't find you?"
-5. **Differentiation** — "What do you do differently from everyone else in this space?"
-6. **Proof** — "What's a moment — a result, a story, a transformation — that proves this works?"
-7. **Voice** — "If your brand were a person talking, how would they sound? Casual, clinical, warm, direct, poetic...?"
-8. **Things to avoid** — "Is there a tone, word, or vibe you definitely don't want associated with you?"
-9. **Name/tagline check** (optional, only if relevant) — "Does your current name/tagline still feel right, or does it undersell what you just described?"
+**Per-turn rules:**
+- One question per turn. No lists of questions.
+- Follow up once if answer is thin, vague, or clichéd.
+- Max 2 follow-ups per field. After 2, infer + mark provisional, advance.
+- After 2+ fields captured, reflect what you know before next question.
+- Never suggest the answer in the question.
+- Track section + field internally; never announce section transitions aloud.
 
-Adjust the question set for context — e.g., a wellness/retreat brand will lean into feeling and transformation; a B2B SaaS brand will lean harder into differentiation and proof.
+**Checkpoints** (after each section completes):
+- Briefly confirm what was captured: "Got it — let me note that before we move on."
+- Do not produce a full summary — one line only.
 
-## Handling "I don't know" — worked pattern
+**Claims gate** (FR-004/FR-005):
+- If any answer mentions medical benefits, financial results, regulated substances, or legal outcomes → ask: "Do your claims require any compliance framing — disclaimers, safe-claim language, or regulated territory warnings?"
+- Include §6 in output only if confirmed. Omit otherwise.
 
-This is the technique to replicate, demonstrated:
+### Phase 2 — Candidate (simplified, mirrors `brand_select_candidate`)
 
-> **Q: Describe the feeling someone should have working with you.**
-> User: I don't know
->
-> Response: Offer prompts grounded in what's already been said about the business (audience, problem, stakes), e.g.:
-> - **Safe and held** — "I was scared going in, but I felt completely taken care of."
-> - **Cracked open** — "Something in me finally moved."
-> - **Coming home to themselves** — "I remembered who I actually am."
-> - **Witnessed** — "Someone actually saw me."
->
-> Then: "Which of those feels closest — or is it something else?"
+After all sections complete, show the user a 3-line brand direction summary:
+> "Here's what I'm about to assemble: [flag line] / [positioning category] / [topline tone]. Does this feel right, or is there anything to adjust before I produce the full document?"
 
-Notice: each option is grounded in the specific business (a psychedelic retreat, in the worked example) — not a generic emotion wheel. Pull details from earlier answers to make the options land.
+Incorporate any last corrections, then proceed to Phase 3.
 
-## Output: the brand profile
+### Phase 3 — Finalize (mirrors `brand_finalize`)
 
-After the interview (or whenever the user wants to wrap up / has answered the core questions), produce a structured brand profile. Default to a markdown artifact unless the user asks for a different format (e.g. a Claude Code skill file, a docx).
+Load `assets/brand-md-template.md`. Populate every field from the interview.
 
-Structure:
+Mark any inferred (not explicitly stated) content with `<!-- provisional: review -->` immediately after the passage.
 
-```markdown
-# [Business Name] — Brand Profile
+Produce the complete `BRAND.md` in a single fenced code block.
 
-## What we do
-[one-sentence description]
-
-## The feeling we create
-[feeling, with the supporting "why" — what it protects against or delivers]
-
-## Who we're for
-[specific audience description]
-
-## The problem we solve
-[stakes / what happens without us]
-
-## What makes us different
-[differentiation]
-
-## Proof it works
-[proof point / story]
-
-## Voice
-[tone descriptors + 2-3 concrete "sounds like" / "doesn't sound like" examples]
-
-## Avoid
-[words/tones/vibes to stay away from]
+After the block, produce a **Provisional Summary**:
+```
+## Provisional Items (confirm before publishing)
+1. [field] — [inferred value] — [why inferred]
 ```
 
-Keep each section tight — 1-3 sentences, not essays. This document should be usable as a drop-in reference for someone else writing copy for the brand.
+## Inference Rule
 
-## If asked to turn the output into a skill file
+When inferring provisional values: derive from the user's own words and industry context only. Never borrow language, metaphors, or themes from any example brand. If you catch yourself writing words the user never used — mark the field provisional instead.
 
-Some users (especially technical ones already using Claude Code) will want the brand profile turned into a reusable skill that future Claude sessions can load when writing copy for this brand. If asked:
+## Quality Gate (self-check before output)
 
-- Use the skill-creator skill's format (`/mnt/skills/examples/skill-creator/SKILL.md`) as the structural reference
-- `name`: the brand name, kebab-case, e.g. `ceremonia-brand-voice`
-- `description`: should trigger whenever someone is writing copy, emails, web content, or any external-facing material for this brand
-- Body: the brand profile content above, written as instructions ("When writing for [Brand], use this voice...") rather than as interview answers
-- Offer to package it with `package_skill.py` if the user wants a downloadable `.skill` file
-
-## Tone for running the interview
-
-Warm, curious, a little informal — like a sharp creative director, not a survey tool. Short messages. No corporate filler ("Great question!", "I'd be happy to help you explore that..."). Get to the next useful thing quickly.
+- All required sections present: §0, §1, §2, §3, §4, §5, §7, §9, §10
+- §6 included ONLY if claims gate triggered
+- No product features/pricing (→ PRODUCT.md)
+- Every inferred field marked `<!-- provisional: review -->`
+- `words_to_avoid[]` populated (feeds banned-word kill list)
+- `positioning_statement` uses exact format: "For [audience], [brand] is the [category] that [differentiator] because [RTB]."
+- Values each have name + brand-specific meaning (not generic platitudes)
+- `plan[]` has exactly 3 steps, each 2–4 words (StoryBrand Plan)
+- `guide_empathy` + `guide_authority` both present in §1 (StoryBrand Guide)
+- `stakes_success` + `stakes_failure` both present in §3 (StoryBrand Stakes)
+- `jtbd` present in §3
+- §7 has all 7 visual direction fields — these are required for the design-token pipeline
